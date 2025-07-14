@@ -1,141 +1,159 @@
-# AWS CDK VPC Deployment Script
+# VPC-Deploy-CDK
 
-This repository contains a reusable AWS CDK Python project that deploys a VPC with multiple CIDR blocks, subnets, and optional NAT Gateway configuration. The script uses context variables so you can easily adapt it to different environments (e.g., Prod, UAT, Test, Dev) and regions (e.g., region1 vs. region2).
+A Python-based AWS CDK script for deploying environment-specific VPCs with standardized CIDR blocks and subnet configurations.
 
-## Contents
+## Overview
 
-- **env_vpc_stack.py**: The main CDK script that defines your VPC, subnets, IGW, route tables, and optional NAT Gateway.
-- **cdk.json**: The CDK project configuration file.
-- **requirements.txt**: A list of Python dependencies required for the project.
-- **README.md**: This file.
+This CDK application creates a VPC with dual CIDR blocks, public and private subnets across two availability zones, and optional NAT gateway functionality. The CIDR blocks are automatically assigned based on environment type and region group.
+
+## Features
+
+- **Environment-specific CIDR allocation**: Automatic CIDR block assignment based on environment type (prod, uat, test, dev, shared)
+- **Dual CIDR blocks**: Primary block for public subnets, additional block for private subnets
+- **Multi-AZ deployment**: Subnets across two availability zones for high availability
+- **Optional NAT Gateway**: Configurable NAT gateway for private subnet internet access
+- **Comprehensive tagging**: All resources tagged with descriptive names for easy identification
+
+## CIDR Block Allocation
+
+### Region 1 (Default)
+- **Production**: `10.10.x.x`
+- **UAT**: `10.20.x.x`
+- **Test**: `10.30.x.x`
+- **Development**: `10.40.x.x`
+- **Shared**: `10.50.x.x`
+
+### Region 2
+- **Production**: `10.100.x.x`
+- **UAT**: `10.120.x.x`
+- **Test**: `10.130.x.x`
+- **Development**: `10.140.x.x`
+- **Shared**: `10.150.x.x`
+
+## Subnet Configuration
+
+For each environment, the following subnets are created:
+
+- **Public Subnet A**: `{prefix}.60.0/25` (AZ-A)
+- **Public Subnet B**: `{prefix}.60.128/25` (AZ-B)
+- **Private Subnet A**: `{prefix}.70.0/25` (AZ-A)
+- **Private Subnet B**: `{prefix}.70.128/25` (AZ-B)
 
 ## Prerequisites
 
-Before you begin, ensure you have the following installed:
+- Python 3.7+
+- AWS CDK CLI installed
+- AWS credentials configured
+- Valid AWS account with appropriate permissions
 
-1. **Node.js & NPM**  
-   Download and install from [nodejs.org](https://nodejs.org/).
+## Installation
 
-2. **AWS CLI**  
-   Follow the instructions [here](https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html) to install the AWS CLI.
-
-3. **AWS CDK**  
-   Install globally with:
-   ```bash
-   npm install -g aws-cdk
-   ```
-
-4. **Python 3.x**  
-   Python 3 should be installed. We recommend using a virtual environment.
-
-## Setup Instructions
-
-### 1. Extract or Clone the Repository
-
-Extract the zipped directory (or clone the repository) into your working directory.
-
-### 2. Create and Activate a Python Virtual Environment
-
-Navigate to your project directory and create a virtual environment:
-
+1. Clone the repository:
 ```bash
-python -m venv .venv
+git clone <repository-url>
+cd VPC-Deploy-CDK
 ```
 
-Activate the environment:
-
-- On Linux/macOS:
-  ```bash
-  source .venv/bin/activate
-  ```
-- On Windows:
-  ```powershell
-  .\.venv\Scripts\activate
-  ```
-
-### 3. Install Dependencies
-
-Install the required Python packages:
-
+2. Install dependencies:
 ```bash
 pip install -r requirements.txt
 ```
 
-### 4. Configure the CDK Project
-
-Ensure you have a file named **cdk.json** in the project root with this content:
-
-```json
-{
-  "app": "python env_vpc_stack.py"
-}
-```
-
-### 5. Setup AWS CLI Credentials
-
-Make sure your AWS CLI is configured correctly. To set up a profile, run:
-
+3. Bootstrap CDK (if not already done):
 ```bash
-aws configure --profile your_profile_name
-or
-aws configure sso (follow prompts)
+cdk bootstrap
 ```
 
-### 6. Bootstrap the Environment
+## Usage
 
-Before you deploy, ensure your target AWS account and region is bootstrapped. Run:
-This needs to be done ONLY ONCE PER Account/Region.
+### Basic Deployment
 
+Deploy a development VPC in region1:
 ```bash
-cdk bootstrap aws://<ACCOUNT_ID>/<REGION> --profile your_profile_name
+cdk deploy -c envType=dev
 ```
 
-For example:
+### Configuration Options
 
+The deployment accepts the following context parameters:
+
+- `envType` (required): Environment type - `prod`, `uat`, `test`, `dev`, or `shared`
+- `cidrGroup` (optional): Region group - `region1` (default) or `region2`
+- `useNatGateway` (optional): Enable NAT Gateway - `true` (default) or `false`
+- `accountId` (optional): AWS account ID (defaults to "YOUR_ACCOUNT_ID")
+- `deployRegion` (optional): Deployment region (defaults to "us-east-1")
+
+### Deployment Examples
+
+**Production VPC in region2 with NAT Gateway:**
 ```bash
-cdk bootstrap aws://123456789012/us-east-1 --profile your_profile_name
+cdk deploy -c envType=prod -c cidrGroup=region2 -c useNatGateway=true
 ```
 
-Repeat for any additional regions (e.g., us-west-2) if needed.
-
-### 7. Deploy the Stack
-
-To deploy the VPC stack, use the `cdk deploy` command with the appropriate context variables. For example:
-
+**Test VPC without NAT Gateway:**
 ```bash
-cdk deploy -c envType=prod -c cidrGroup=region1 -c useNatGateway=true -c accountId=123456789012 -c deployRegion=us-east-1 --profile your_profile_name
+cdk deploy -c envType=test -c useNatGateway=false
 ```
 
-**Context Variables Explained:**
-
-- `envType`: Should be one of `prod`, `uat`, `test`, `dev`, or `shared` (case-insensitive).
-- `cidrGroup`: Either `region1` or `region2` (selects the CIDR prefix).
-- `useNatGateway`: Set to `true` or `false` to enable/disable a NAT Gateway.
-- `accountId`: The AWS account ID where the stack will be deployed.
-- `deployRegion`: The AWS region for deployment.
-- `--profile`: Specifies the AWS CLI profile to use.
-
-### 8. Deploying Multiple Stacks in Parallel
-
-To speed up deployments across multiple accounts or regions, you can run multiple `cdk deploy` commands concurrently. For example, you can create a shell script like the following (for Linux/macOS):
-
+**UAT VPC with specific account and region:**
 ```bash
-
-# Deploy a Production VPC to region1
-cdk deploy EnvVpcStack --profile prod_profile -c envType=prod -c cidrGroup=region1 -c accountId=123456789012 -c deployRegion=us-east-1
-
-# Deploy a UAT VPC to region2
-cdk deploy EnvVpcStack --profile uat_profile -c envType=uat -c cidrGroup=region2 -c accountId=123456789012 -c deployRegion=us-west-2 
-
+cdk deploy -c envType=uat -c accountId=123456789012 -c deployRegion=us-west-2
 ```
 
-## Customization
+## Architecture
 
-You can modify the VPC configuration, CIDR mappings, subnet configurations, and resource tagging in the `env_vpc_stack.py` file to suit your needs. To make changes permanent, update the mappings or even embed additional logic based on your environment requirements.
+The deployed infrastructure includes:
 
-## Summary
+- **VPC** with primary and additional CIDR blocks
+- **Internet Gateway** for public internet access
+- **Public Subnets** (2) with auto-assigned public IPs
+- **Private Subnets** (2) without public IPs
+- **Route Tables** for public and private subnets
+- **NAT Gateway** (optional) with Elastic IP for private subnet internet access
 
-This project was created by RTS & provides a flexible, reusable AWS CDK VPC deployment solution. By following the steps above and supplying the necessary context values, you can deploy your VPC into multiple AWS accounts and regions quickly and efficiently.
+## File Structure
 
-Now, Go Build
-RTS
+```
+VPC-Deploy-CDK/
+├── env_vpc_stack.py    # Main CDK stack implementation
+├── cdk.json           # CDK configuration
+├── requirements.txt   # Python dependencies
+└── README.md         # This file
+```
+
+## Development
+
+To modify the stack:
+
+1. Edit `env_vpc_stack.py` to customize the VPC configuration
+2. Update `requirements.txt` if adding new dependencies
+3. Test changes with `cdk diff` before deployment
+4. Use `cdk synth` to generate CloudFormation templates
+
+## Troubleshooting
+
+**Common Issues:**
+
+1. **Missing envType**: Ensure you provide the `-c envType=<env>` parameter
+2. **Invalid environment**: Check that envType is one of: prod, uat, test, dev, shared
+3. **Permission errors**: Verify AWS credentials have VPC creation permissions
+4. **Region availability**: Ensure the target region has at least 2 availability zones
+
+## Clean Up
+
+To destroy the deployed resources:
+```bash
+cdk destroy
+```
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Test thoroughly
+5. Submit a pull request
+
+## License
+
+This project is licensed under the MIT License.
